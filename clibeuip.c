@@ -10,22 +10,20 @@
 #define PORT 9998
 #define LOCALHOST "127.0.0.1"
 
-int main(int argc,char* argv[] ){
+int main(int argc, char* argv[]) {
     int sid;
-    struct sockaddr_in servAddr;
+    struct sockaddr_in servAddr, from;
+    socklen_t flen = sizeof(from);
     char buffer[1024];
+    char buffer_ar[1024];
     int msg_len = 0;
     
-    if (argc < 2){
-        fprintf(stderr,"Utilisation : \n ");
-        fprintf(stderr, "  %s 3                  : Demander la liste des utilisateurs\n", argv[0]);
-        fprintf(stderr, "  %s 4 <pseudo> <msg>   : Envoyer un message privé\n", argv[0]);
-        fprintf(stderr, "  %s 5 <msg>            : Envoyer un message à tout le monde\n", argv[0]);
-        fprintf(stderr, "  %s 0                  : Quitter le réseau\n", argv[0]);
+    if (argc < 2) {
+        fprintf(stderr, "Utilisation : %s <code_beuip> [args...]\n", argv[0]);
         exit(1);
     }
 
-    if ((sid = socket(AF_INET,SOCK_DGRAM,0)) == -1){
+    if ((sid = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
         perror("socket");
         exit(2);
     }
@@ -37,44 +35,45 @@ int main(int argc,char* argv[] ){
 
     char code = argv[1][0];
 
-    switch (code)
-    {
-    case '3':strcpy(buffer,"3BEUIP");
-        msg_len = 6;
-        printf("Demande de liste envoye au serveur\n");
-        break;
-    case '4':
-        if (argc != 4){
-            fprintf(stderr,"Erreur : pseudo ou massage manque\n");
-            exit(3);
-        }
-        msg_len = sprintf(buffer,"4BEUIP%s",argv[2]);
-        msg_len ++;
-        strcpy(buffer + msg_len, argv[3]);
-        msg_len += strlen(argv[3]);
-        printf("Demande d'envoi de message privé à '%s' envoyée.\n", argv[2]);
-        break;
-    case '5' : if (argc != 3) {
-        fprintf(stderr, "Erreur: Message manquant.\n");
-        exit(1);
-        }
-        msg_len = sprintf(buffer, "5BEUIP%s", argv[2]);
-        printf("Demande de diffusion envoyée.\n");
-        break;
-    case '0' : strcpy(buffer, "0BEUIP");
-        msg_len = 6;
-        printf("Signal de déconnexion envoyé au serveur.\n");
-        break;
-    default:
-        fprintf(stderr, "Code inconnu. Utilisez 3, 4, 5 ou 0.\n");
-        exit(4);
-        break;
+    switch (code) {
+        case '3':
+            strcpy(buffer, "3BEUIP");
+            msg_len = 6;
+            break;
+        case '4':
+            if (argc != 4) { fprintf(stderr, "Manque pseudo ou message\n"); exit(3); }
+            msg_len = sprintf(buffer, "4BEUIP%s", argv[2]);
+            msg_len++; // caractère nul de séparation
+            strcpy(buffer + msg_len, argv[3]);
+            msg_len += strlen(argv[3]);
+            break;
+        case '5':
+            if (argc != 3) { fprintf(stderr, "Message manquant\n"); exit(3); }
+            msg_len = sprintf(buffer, "5BEUIP%s", argv[2]);
+            break;
+        case '0':
+            strcpy(buffer, "0BEUIP");
+            msg_len = 6;
+            break;
+        default:
+            fprintf(stderr, "Code inconnu (0,3,4,5)\n");
+            exit(4);
     }
 
+    // Envoi au serveur local
     if (sendto(sid, buffer, msg_len, 0, (struct sockaddr *)&servAddr, sizeof(servAddr)) < 0) {
         perror("sendto");
         exit(1);
     }
+
+    // --- [AJOUT ÉTAPE 1] : Attente de l'Accusé de Réception (AR) ---
+    printf("Message envoyé. Attente de l'AR...\n");
+    int n = recvfrom(sid, buffer_ar, sizeof(buffer_ar) - 1, 0, (struct sockaddr *)&from, &flen);
+    if (n > 0) {
+        buffer_ar[n] = '\0';
+        printf("Serveur dit : %s\n", buffer_ar);
+    }
+
     close(sid);
     return 0;
 }

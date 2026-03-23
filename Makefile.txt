@@ -1,9 +1,9 @@
 all : servbeuip clibeuip
 
-servbeuip :
+servbeuip : servbeuip.c
 	cc -o servbeuip servbeuip.c -Wall -Werror
 	
-clibeuip :
+clibeuip : clibeuip.c
 	cc -o clibeuip clibeuip.c -Wall -Werror
 	
 clean :
